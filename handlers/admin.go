@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 
-	"query-to-api/storage"
-	"query-to-api/utils"
+	"query-to-api-service/storage"
+	"query-to-api-service/utils"
 )
 
 type AdminHandler struct {

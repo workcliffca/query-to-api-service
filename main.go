@@ -9,12 +9,13 @@ import (
 	"sync"
 
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 	_ "github.com/microsoft/go-mssqldb"
 
-	"query-to-api/config"
-	"query-to-api/handlers"
-	"query-to-api/middleware"
-	"query-to-api/storage"
+	"query-to-api-service/config"
+	"query-to-api-service/handlers"
+	"query-to-api-service/middleware"
+	"query-to-api-service/storage"
 )
 
 type DynamicRouter struct {
@@ -28,23 +29,43 @@ func (dr *DynamicRouter) HandleFunc(path string, handler http.HandlerFunc) {
 	dr.mux.HandleFunc(path, handler).Methods("GET")
 }
 
+func connectDatabase(cfg *config.Config) (*sql.DB, error) {
+	var dsn string
+	var driver string
+
+	switch cfg.DBType {
+	case "postgres":
+		driver = "postgres"
+		dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+
+	case "mssql":
+		driver = "sqlserver"
+		query := url.Values{}
+		query.Add("database", cfg.DBName)
+		query.Add("encrypt", "true")
+		query.Add("trustServerCertificate", "false")
+
+		dsnURL := &url.URL{
+			Scheme:   "sqlserver",
+			User:     url.UserPassword(cfg.DBUser, cfg.DBPassword),
+			Host:     fmt.Sprintf("%s:%s", cfg.DBHost, cfg.DBPort),
+			RawQuery: query.Encode(),
+		}
+		dsn = dsnURL.String()
+
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", cfg.DBType)
+	}
+
+	return sql.Open(driver, dsn)
+}
+
 func main() {
 	cfg := config.LoadConfig()
 
-	// Connect to Azure SQL Database
-	query := url.Values{}
-	query.Add("database", cfg.DBName)
-	query.Add("encrypt", "true")
-	query.Add("trustServerCertificate", "false")
-
-	dsn := &url.URL{
-		Scheme:   "sqlserver",
-		User:     url.UserPassword(cfg.DBUser, cfg.DBPassword),
-		Host:     fmt.Sprintf("%s:%s", cfg.DBHost, cfg.DBPort),
-		RawQuery: query.Encode(),
-	}
-
-	db, err := sql.Open("sqlserver", dsn.String())
+	// Connect to database based on type
+	db, err := connectDatabase(cfg)
 	if err != nil {
 		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
@@ -55,7 +76,7 @@ func main() {
 		log.Fatalf("❌ Database ping failed: %v", err)
 	}
 
-	log.Println("✓ Database connected successfully")
+	log.Printf("✓ Database connected successfully (type: %s)", cfg.DBType)
 
 	// Initialize repository
 	repo := storage.NewRepository(db)

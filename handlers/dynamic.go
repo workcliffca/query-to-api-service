@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"query-to-api/storage"
-	"query-to-api/utils"
+	"query-to-api-service/storage"
+	"query-to-api-service/utils"
 )
 
 // HandlerFactory creates a dynamic GET handler using closure
